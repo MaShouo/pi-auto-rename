@@ -519,6 +519,86 @@ export function shouldReDerive(st: { coreLocked?: boolean; evidenceKey?: string 
   return (st.evidenceKey ?? "") !== e.key;
 }
 
+/**
+ * Whether a rename run is due (issue #9 D1). force/final bypass every gate.
+ * The first run of a session is due as soon as content exists — the
+ * firstAfterMin wall-clock gate moved to the core lock (`coreLocksNow`), so a
+ * session that dies in two minutes still gets a title while it is alive.
+ */
+export function renameDue(input: {
+  st: { lastRunEpoch?: number };
+  nowSec: number;
+  repeatEveryMin: number;
+  force?: boolean;
+  final?: boolean;
+}): boolean {
+  if (input.force || input.final) return true;
+  if (!input.st.lastRunEpoch) return true;
+  return input.nowSec - input.st.lastRunEpoch >= input.repeatEveryMin * 60;
+}
+
+/**
+ * Whether the core locks on this run (issue #9 D2). The 5-minute window keeps
+ * its original purpose — "wait until the intent settles" — but now as a
+ * correction window: a title exists from the first settle, and only a
+ * substantive anchor that is at least firstAfterMin old gets frozen.
+ * Already-locked cores, force, and evidence re-derives always lock.
+ */
+export function coreLocksNow(input: {
+  alreadyLocked?: boolean;
+  substantive: boolean;
+  ageSec: number;
+  firstAfterMin: number;
+  force?: boolean;
+  rederive?: boolean;
+}): boolean {
+  if (input.alreadyLocked) return true;
+  if (input.force || input.rederive) return true;
+  return input.substantive && input.ageSec >= input.firstAfterMin * 60;
+}
+
+/** Mechanical core for a session whose whole early window is greetings
+ *  (issue #9 D3): zero model cost, no quality gate, and the caller must NOT
+ *  lock the core nor consume the rename cooldown. */
+export function trivialCore(lang: TitleLang): string {
+  return lang === "zh" ? "问候交流" : "Greeting exchange";
+}
+
+/**
+ * Whether session_start should self-heal a never-named session that already
+ * has content (issue #9 D5) — reopening an old view names it immediately.
+ * Defensive by design: only an explicit "reload" is skipped, so an SDK reason
+ * rename can never silently disable the self-heal.
+ * SDK: SessionStartEvent.reason ∈ startup|reload|new|resume|fork
+ * (@earendil-works/pi-coding-agent dist/core/extensions/types.d.ts:562-568).
+ */
+export function shouldRenameOnStart(input: {
+  reason: string;
+  lastRunEpoch?: number;
+  hasUserMessages: boolean;
+}): boolean {
+  if (input.reason === "reload") return false;
+  if (input.lastRunEpoch) return false;
+  return input.hasUserMessages;
+}
+
+/**
+ * One-line `/autorename-status` text (issue #9 D9). The trailing
+ * `timing=first@settle,lock@<n>m` marker is also the deployment self-proof:
+ * a copy without the new timing semantics cannot print it, so user tests can
+ * verify the loaded code before trusting their results.
+ */
+export function formatStatusLine(
+  st: { lastSetTitle?: string; lastCore?: string; coreLocked?: boolean; paused?: boolean; pausedReason?: string; lastRunEpoch?: number },
+  config: { firstAfterMin: number },
+): string {
+  return `auto-rename: title=${st.lastSetTitle ?? "(none)"} core=${st.lastCore ?? "(none)"} ` +
+    `locked=${st.coreLocked ? "yes" : "no"} ` +
+    `paused=${st.paused ? st.pausedReason ?? "yes" : "no"} ` +
+    `lastRun=${st.lastRunEpoch ? new Date(st.lastRunEpoch * 1000).toLocaleTimeString() : "never"} ` +
+    `timing=first@settle,lock@${config.firstAfterMin}m`;
+}
+
 // ---- issue-driven work evidence (issue #7) -----------------------------------
 // The session's "issue under work" is recovered from tool calls and tool
 // results — the subject of an issue-driven session lives there, not in the
