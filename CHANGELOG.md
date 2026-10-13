@@ -4,6 +4,23 @@ All notable changes to this project are documented in this file. The format
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the
 project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2026-10-13
+
+### Fixed
+- 短会话/闲置会话永远拿不到标题：首轮重命名不再等 `firstAfterMin`，第一个有内容的 `agent_settled` 即命名；被杀/提前结束的会话由 `session_shutdown` 兜底、重开由 `session_start` 自愈补名（issue #9）
+- 手工改名保护覆盖「从未被自动命名」的窗口：暂停判据改为「≠ 我设过的标题 且 ≠ 会话初始名」，board 种子名重放不再误冻结
+
+### Changed
+- `firstAfterMin` 语义从「首次命名门槛」改为「核心锁定门槛」：标题即时出现，会话满门槛前保持可修正（锁定时机与旧版一致：满门槛后的首次刷新）
+- 纯问候会话使用本地机械标题（zh「问候交流」/ 其他 `Greeting exchange`）：零模型调用、跳过质量门、不占用 `repeatEveryMin` 冷却，实质内容到达后下一轮 settle 立即升级
+- `/autorename-status` 增印 `timing=first@settle,lock@<n>m`，兼作新代码已加载的部署自证标记
+- README 时机语义与配置表按新行为改写，并新增静态一致性测试防漂移
+
+### Added
+- `session_shutdown` 退出兜底：非 reload、从未命名时补跑一次，5s `AbortSignal` 预算，不阻断退出
+- `session_start` 重开自愈：重开从未命名的会话立即命名（存量 view 打开即补名）
+- 零依赖集成测试基建：esbuild `--alias:` 注入模型 stub + 假 pi/ctx，真实扩展接线可无网络测试
+
 ## [0.3.0] - 2026-10-09
 
 ### Added
