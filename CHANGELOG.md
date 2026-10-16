@@ -4,6 +4,11 @@ All notable changes to this project are documented in this file. The format
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the
 project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.1] - 2026-10-16
+
+### Fixed
+- issue 证据抽取把「唯一 mutate 且为 top」误判为歧义（典型形态 13 vs 7，差 1 分）：会话对唯一一个 issue 执行过写操作时不再参与 2x 比例比较，标题不再退回流程标签（issue #11）
+
 ## [0.4.0] - 2026-10-13
 
 ### Fixed
