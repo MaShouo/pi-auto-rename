@@ -61,7 +61,16 @@ applies it via `pi.setSessionName()`.
 
 ## Installation
 
-### From npm (recommended)
+### From this fork (configurable thinking)
+
+```bash
+pi install git:github.com/MaShouo/pi-auto-rename
+```
+
+If the upstream npm package is already installed, remove it first with
+`pi remove npm:@zhuxixi/pi-auto-rename` to avoid loading two copies.
+
+### From npm (upstream)
 
 ```bash
 pi install npm:@zhuxixi/pi-auto-rename
@@ -92,19 +101,34 @@ git clone https://github.com/zhuxixi/pi-auto-rename.git ~/.pi/agent/extensions/p
 ## Configuration
 
 The config file is created automatically on first load at
-`~/.pi/agent/auto-rename.json`:
+`<agent-dir>/auto-rename.json` (normally `~/.pi/agent/auto-rename.json`;
+respects `PI_CODING_AGENT_DIR`):
 
 | Key             | Default                     | Meaning                                        |
 | --------------- | --------------------------- | ---------------------------------------------- |
 | `enabled`       | `true`                      | Master switch                                  |
 | `model`         | `"deepseek/deepseek-v4-flash"` | `provider/modelId` in pi's model registry   |
+| `thinkingLevel` | `"low"`                    | Title-generation thinking: `"off"`, `"minimal"`, `"low"`, `"medium"`, `"high"`, `"xhigh"`, or `"max"`. Missing or invalid values fall back to `"low"`. Pi maps/clamps the level to the selected model's capabilities. |
 | `firstAfterMin` | `5`                         | Core-lock delay: the title appears at the first settle and stays re-derivable until the session is this old |
 | `repeatEveryMin`| `3`                         | Re-rename cadence after the first rename       |
 | `maxCoreWidth`  | `24`                        | Core-goal cap in display columns (CJK counts 2) |
 | `debug`         | `false`                     | Verbose logging to stderr                      |
 | `lang`          | `"auto"`                    | Forced title language: `"zh"` / `"en"` / `"auto"` (default — follows the session's original intent). Invalid values fall back to `"auto"`. Applies to newly generated and `/autorename`-forced titles only |
 
-Edit the file and run `/reload` to apply.
+For example, to increase title-generation reasoning, add this field to the existing config:
+
+```json
+{
+  "thinkingLevel": "high"
+}
+```
+
+Config changes are read on the next rename attempt without a reload. Use
+`/autorename` to force a new title and `/autorename-status` to check the configured
+level. This setting controls only title generation; it leaves the main session's
+thinking level unchanged. An already locked title is reused until forced.
+`"off"` requests disabled thinking through Pi's provider-neutral API; unsupported
+levels are adjusted by Pi according to the model metadata.
 
 ## Commands
 
@@ -113,7 +137,7 @@ Edit the file and run `/reload` to apply.
 | `/autorename`         | Force a rename now (bypasses cooldown, pause, and core lock; re-derives with latest context) |
 | `/autorename-pause`   | Pause auto-rename for this session                  |
 | `/autorename-resume`  | Resume auto-rename for this session                 |
-| `/autorename-status`  | Show current state (title, core, locked, paused)    |
+| `/autorename-status`  | Show current state (title, core, locked, paused, configured thinking level) |
 
 ## How It Works
 

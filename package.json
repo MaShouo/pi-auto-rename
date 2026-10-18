@@ -14,7 +14,7 @@
   "author": "zhuxixi <zhuzhenxi_555@hotmail.com>",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/zhuxixi/pi-auto-rename.git"
+    "url": "git+https://github.com/MaShouo/pi-auto-rename.git"
   },
   "type": "module",
   "files": [

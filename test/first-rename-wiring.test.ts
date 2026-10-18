@@ -8,6 +8,7 @@ import { eq, summary, check } from "./support/assert";
 const home = mkdtempSync(join(tmpdir(), "ar-home-"));
 const board = mkdtempSync(join(tmpdir(), "ar-board-"));
 process.env.HOME = home;
+process.env.PI_CODING_AGENT_DIR = join(home, ".pi", "agent");
 process.env.AGENT_BOARD_ROOT = board;
 
 const { makeHarness, writeSessionFile } = await import("./support/fake-pi");

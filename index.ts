@@ -41,14 +41,14 @@
  * later substantive upgrade.
  *
  * Controls:
- *   * ~/.pi/agent/auto-rename.json  {enabled, model, firstAfterMin, repeatEveryMin, maxCoreWidth, debug, lang}
+ *   * <agent-dir>/auto-rename.json  {enabled, model, thinkingLevel, firstAfterMin, repeatEveryMin, maxCoreWidth, debug, lang}
  *   * /autorename          force a rename now (bypasses cooldown, pause, and core lock; re-derives with latest context)
  *   * /autorename-pause    pause this session
  *   * /autorename-resume   resume this session
  *   * /autorename-status   show current state
  */
-import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { complete } from "@earendil-works/pi-ai/compat";
+import { getAgentDir, type ExtensionAPI, type ExtensionContext } from "@earendil-works/pi-coding-agent";
+import { completeSimple } from "@earendil-works/pi-ai/compat";
 import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, statSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
@@ -92,11 +92,14 @@ import {
 export { capTitle, composeTitle, coreFromTitle, coreIsNonGoal, earlyExcerpt, truncateDisplay };
 
 // ---- config -----------------------------------------------------------------
-const CONFIG_PATH = join(homedir(), ".pi", "agent", "auto-rename.json");
+const CONFIG_PATH = join(getAgentDir(), "auto-rename.json");
+const THINKING_LEVELS = ["off", "minimal", "low", "medium", "high", "xhigh", "max"] as const;
+type ThinkingLevel = typeof THINKING_LEVELS[number];
 
 interface AutoRenameConfig {
   enabled: boolean;
   model: string;            // "provider/modelId" in pi's model registry
+  thinkingLevel: ThinkingLevel; // provider-neutral reasoning level for title generation
   firstAfterMin: number;    // minutes of session life before the core locks (issue #9)
   repeatEveryMin: number;   // re-rename cadence after the first rename
   maxCoreWidth: number;     // core-goal cap in display columns (CJK counts 2)
@@ -107,6 +110,7 @@ interface AutoRenameConfig {
 const DEFAULT_CONFIG: AutoRenameConfig = {
   enabled: true,
   model: "deepseek/deepseek-v4-flash",
+  thinkingLevel: "low",
   firstAfterMin: 5,
   repeatEveryMin: 3,
   maxCoreWidth: MAX_CORE_WIDTH,
@@ -142,6 +146,7 @@ function loadConfig(): AutoRenameConfig {
         configCache = {
           enabled: typeof raw.enabled === "boolean" ? raw.enabled : DEFAULT_CONFIG.enabled,
           model: typeof raw.model === "string" && raw.model.trim() ? raw.model.trim() : DEFAULT_CONFIG.model,
+          thinkingLevel: THINKING_LEVELS.includes(raw.thinkingLevel as ThinkingLevel) ? raw.thinkingLevel as ThinkingLevel : DEFAULT_CONFIG.thinkingLevel,
           firstAfterMin: typeof raw.firstAfterMin === "number" && raw.firstAfterMin >= 1 ? raw.firstAfterMin : DEFAULT_CONFIG.firstAfterMin,
           repeatEveryMin: typeof raw.repeatEveryMin === "number" && raw.repeatEveryMin >= 1 ? raw.repeatEveryMin : DEFAULT_CONFIG.repeatEveryMin,
           maxCoreWidth: typeof raw.maxCoreWidth === "number" && raw.maxCoreWidth >= 8 ? raw.maxCoreWidth : DEFAULT_CONFIG.maxCoreWidth,
@@ -183,6 +188,7 @@ interface LlmRuntime {
   ctx: ExtensionContext;
   model: any;
   apiKey: string;
+  thinkingLevel: ThinkingLevel;
   headers?: Record<string, string>;
   env?: Record<string, string>;
 }
@@ -214,15 +220,15 @@ async function llmOnce(rt: LlmRuntime, userContent: string, correctionHint?: str
     if (signal?.aborted) controller.abort(signal.reason);
     else signal?.addEventListener("abort", onOuter, { once: true });
     try {
-      const resp = await complete(
+      const resp = await completeSimple(
         rt.model,
         { systemPrompt, messages: msgs },
         {
           apiKey: rt.apiKey, headers: rt.headers, env: rt.env,
           maxTokens: MAX_NAME_TOKENS,
-          reasoningEffort: "minimal", // deepseek-v4-flash defaults to thinking; keep it cheap
+          reasoning: rt.thinkingLevel === "off" ? undefined : rt.thinkingLevel,
           signal: controller.signal,
-        } as any,
+        },
       );
       return extractText(resp);
     } finally {
@@ -340,7 +346,7 @@ async function buildLlmRuntime(ctx: ExtensionContext): Promise<LlmRuntime | null
     try {
       const auth = await ctx.modelRegistry.getApiKeyAndHeaders(model);
       if (auth.ok && auth.apiKey) {
-        return { ctx, model, apiKey: auth.apiKey, headers: auth.headers, env: auth.env };
+        return { ctx, model, apiKey: auth.apiKey, headers: auth.headers, env: auth.env, thinkingLevel: config.thinkingLevel };
       }
     } catch (e) {
       debugLog(`auth for ${model?.provider}/${model?.id} failed: ${e instanceof Error ? e.message : String(e)}`);
@@ -605,7 +611,8 @@ export default function autoRename(pi: ExtensionAPI): void {
     description: "Show auto-rename state for this session",
     handler: async (_args, ctx) => {
       const st = readState(ctx.sessionManager.getBranch());
-      ctx.ui.notify(formatStatusLine(st, loadConfig()), "info");
+      const config = loadConfig();
+      ctx.ui.notify(`${formatStatusLine(st, config)} thinking=${config.thinkingLevel}`, "info");
     },
   });
 }

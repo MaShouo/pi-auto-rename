@@ -4,6 +4,16 @@ All notable changes to this project are documented in this file. The format
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the
 project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased] - MaShouo fork
+
+### Added
+- 支持从 agent 目录的 `auto-rename.json` 读取 `thinkingLevel`（`off` / `minimal` / `low` / `medium` / `high` / `xhigh` / `max`），默认 `low`，下次命名时自动读取变更。
+- `/autorename-status` 显示配置的思考强度；配置路径遵循 Pi 的 `PI_CODING_AGENT_DIR`。
+- 覆盖思考强度、无效值回退、热更新及重试传参的回归测试。
+
+### Fixed
+- 使用 `completeSimple` 的跨 provider `reasoning` 参数，修复硬编码 `reasoningEffort` 无法正确控制 Responses 等 API 思考强度的问题。
+
 ## [0.4.1] - 2026-10-16
 
 ### Fixed
